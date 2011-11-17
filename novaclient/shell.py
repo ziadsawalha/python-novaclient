@@ -29,6 +29,7 @@ from novaclient import exceptions as exc
 from novaclient import utils
 from novaclient.v1_0 import shell as shell_v1_0
 from novaclient.v1_1 import shell as shell_v1_1
+from novaclient.keystone import shell as shell_keystone
 
 
 def env(e):
@@ -108,6 +109,7 @@ class OpenStackComputeShell(object):
             actions_module = shell_v1_0
 
         self._find_actions(subparsers, actions_module)
+        self._find_actions(subparsers, shell_keystone)
         self._find_actions(subparsers, self)
 
         return parser
@@ -167,19 +169,23 @@ class OpenStackComputeShell(object):
         #FIXME(usrleon): Here should be restrict for project id same as
         # for username or password but for compatibility it is not.
 
-        if not user:
-            raise exc.CommandError("You must provide a username, either"
-                                   "via --username or via "
-                                   "env[NOVA_USERNAME]")
-        if not password:
-            raise exc.CommandError("You must provide a password, either"
-                                   "via --password or via"
-                                   "env[NOVA_PASSWORD]")
-        if options.version and options.version != '1.0':
-            if not projectid:
-                raise exc.CommandError("You must provide an projectid, either"
-                                       "via --projectid or via"
-                                       "env[NOVA_PROJECT_ID")
+        #TODO(ZNS): Need a cleaner way to support unauthenticated calls
+        if args.func != shell_keystone.do_discover:
+            if not user:
+                raise exc.CommandError("You must provide a username, either"
+                                       "via --username or via "
+                                       "env[NOVA_USERNAME]")
+    
+            if not password :
+                raise exc.CommandError("You must provide a password via "
+                                       "--password or "
+                                       "env[NOVA_PASSWORD]")
+
+            if options.version and options.version != '1.0':
+                if not projectid:
+                    raise exc.CommandError("You must provide an projectid, either"
+                                           "via --projectid or via"
+                                           "env[NOVA_PROJECT_ID")
 
             if not url:
                 raise exc.CommandError("You must provide a auth url, either"
@@ -192,7 +198,9 @@ class OpenStackComputeShell(object):
                                      endpoint_name=endpoint_name)
 
         try:
-            self.cs.authenticate()
+            #TODO(ZNS): Need a cleaner way to support unauthenticated calls
+            if args.func != shell_keystone.do_discover:
+                self.cs.authenticate()
         except exc.Unauthorized:
             raise exc.CommandError("Invalid OpenStack Nova credentials.")
         except exc.AuthorizationFailure:
